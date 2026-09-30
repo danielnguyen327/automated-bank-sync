@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: backend
+  config:
+    import: optional:file:.env
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+management:
+  endpoints:
+    web:
+      base-path: /api
+      exposure:
+        include: health 
