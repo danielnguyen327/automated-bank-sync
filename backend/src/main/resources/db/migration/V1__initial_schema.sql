@@ -4,7 +4,7 @@ create table app_user (
   name          text not null,
   password_hash text, -- null for Google/GitHub accounts
   created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
 );
 
 create table plaid_item (
@@ -19,7 +19,7 @@ create table plaid_item (
                            check (status in ('active', 'login_required', 'error')),  
   last_synced_at         timestamptz,
   created_at             timestamptz not null default now(),
-  updated_at             timestamptz not null default now(),
+  updated_at             timestamptz not null default now()
 );
 create index plaid_item_user_id_idx on plaid_item (user_id);
 
@@ -38,7 +38,7 @@ create table financial_account (
   available_balance_cents bigint,
   iso_currency_code       text,
   created_at              timestamptz not null default now(),
-  updated_at              timestamptz not null default now(),
+  updated_at              timestamptz not null default now()
 );
 create index financial_account_user_id_idx on financial_account (user_id);
 create index financial_account_item_id_idx on financial_account (item_id);

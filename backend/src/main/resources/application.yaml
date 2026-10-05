@@ -2,7 +2,7 @@ spring:
   application:
     name: backend
   config:
-    import: optional:file:.env
+    import: optional:file:.env[.properties]
   jpa:
     open-in-view: false
     hibernate:
