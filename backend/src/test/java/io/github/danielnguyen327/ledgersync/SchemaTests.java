@@ -12,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
@@ -53,34 +54,40 @@ class SchemaTests {
         order by table_name
         """, String.class);
     assertThat(tables).containsExactly(
-      "app_user", "balance_snapshot", "bank_transaction", "financial_account", "insight_set", "plaid_item", "sync_run");
+      "app_user", "balance_snapshot", "bank_transaction", "financial_account", "insight_set", "plaid_item", "spring_session", "spring_session_attributes", "sync_run");
   }
 
-   @Test
-    void deletingAUserDeletesAllOfTheirData() {
-        jdbc.update(INSERT_TRANSACTION, userId, accountId);
-        jdbc.update("""
-            insert into balance_snapshot (user_id, account_id, snapshot_date, current_cents)
-            values (?, ?, date '2026-09-20', 114620)
-            """, userId, accountId);
-        jdbc.update("insert into sync_run (user_id, item_id) values (?, ?)", userId, itemId);
-        jdbc.update("""
-            insert into insight_set (user_id, period_start, period_end, facts)
-            values (?, date '2026-09-01', date '2026-09-30', '[]'::jsonb)
-            """, userId);
-        jdbc.update("delete from app_user where id = ?", userId);
+  @Test
+    void emailsAreStoredLowerCase() {
+      assertThatThrownBy(() -> jdbc.update("insert into app_user (email, name) values ('Sam@Example.com', 'Sam')"))
+        .isInstanceOf(DataIntegrityViolationException.class);
+  }
 
-        for (String table : List.of("plaid_item", "financial_account", "bank_transaction", "balance_snapshot", "insight_set", "sync_run")) {
-          assertThat(jdbc.queryForObject("select count(*) from " + table, Integer.class))
-          .as(table)
-          .isZero();
-        }
-    }
+  @Test
+  void deletingAUserDeletesAllOfTheirData() {
+    jdbc.update(INSERT_TRANSACTION, userId, accountId);
+    jdbc.update("""
+        insert into balance_snapshot (user_id, account_id, snapshot_date, current_cents)
+        values (?, ?, date '2026-09-20', 114620)
+        """, userId, accountId);
+    jdbc.update("insert into sync_run (user_id, item_id) values (?, ?)", userId, itemId);
+    jdbc.update("""
+        insert into insight_set (user_id, period_start, period_end, facts)
+        values (?, date '2026-09-01', date '2026-09-30', '[]'::jsonb)
+        """, userId);
+    jdbc.update("delete from app_user where id = ?", userId);
 
-    @Test
-    void aPlaidTransactionIsStoredOnlyOnce() {
-      jdbc.update(INSERT_TRANSACTION, userId, accountId);
-      assertThatThrownBy(() -> jdbc.update(INSERT_TRANSACTION, userId, accountId))
-      .isInstanceOf(DuplicateKeyException.class);
+    for (String table : List.of("plaid_item", "financial_account", "bank_transaction", "balance_snapshot", "insight_set", "sync_run")) {
+      assertThat(jdbc.queryForObject("select count(*) from " + table, Integer.class))
+      .as(table)
+      .isZero();
     }
+  }
+
+  @Test
+  void aPlaidTransactionIsStoredOnlyOnce() {
+    jdbc.update(INSERT_TRANSACTION, userId, accountId);
+    assertThatThrownBy(() -> jdbc.update(INSERT_TRANSACTION, userId, accountId))
+    .isInstanceOf(DuplicateKeyException.class);
+  }
 }
