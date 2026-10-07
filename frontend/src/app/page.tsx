@@ -1,13 +1,11 @@
-import { ApiStatus } from "@/components/api-status";
+import { SignInScreen } from "@/components/sign-in-screen";
+import { SignedInHome } from "@/components/signed-in-home";
+import { getSession } from "@/lib/session";
+import { getTheme } from "@/lib/theme";
 
-export default function Home() {
-  return (
-    <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-4 px-6">
-      <h1 className="text-3xl font-semibold tracking-tight">LedgerSync</h1>
-      <p className="text-ink-2">
-        All your bank accounts and credit cards in one place, synced automatically.
-      </p>
-      <ApiStatus />
-    </main>
-  );
+/** One page: the sign-in screen when signed out, the app when signed in. */
+export default async function Home() {
+  const [session, theme] = await Promise.all([getSession(), getTheme()]);
+  if (session.status === "signed-in") return <SignedInHome user={session.user} theme={theme} />;
+  return <SignInScreen theme={theme} unavailable={session.status === "unavailable"} />;
 }
