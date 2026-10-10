@@ -8,6 +8,27 @@ export const userSchema = z.object({
 
 export type User = z.infer<typeof userSchema>;
 
+const accountSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  mask: z.string().nullable(),
+  type: z.string(),
+  subtype: z.string().nullable(),
+  currentBalanceCents: z.number().nullable(),
+  availableBalanceCents: z.number().nullable(),
+  isoCurrencyCode: z.string().nullable(),
+});
+
+export const bankSchema = z.object({
+  id: z.string(),
+  institutionName: z.string(),
+  status: z.string(),
+  accounts: z.array(accountSchema),
+});
+
+export type Account = z.infer<typeof accountSchema>;
+export type Bank = z.infer<typeof bankSchema>;
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -15,6 +36,12 @@ export class ApiError extends Error {
   ) {
     super(message);
   }
+}
+
+/** The sentence to show when a request fails. */
+export function messageFor(error: unknown): string {
+  if (error instanceof ApiError) return error.message;
+  return "Can’t reach LedgerSync right now. Try again in a moment.";
 }
 
 /** Reads one cookie from a `document.cookie`-style string. */
@@ -37,8 +64,8 @@ export async function errorMessage(response: Response): Promise<string> {
 }
 
 /**
- * The backend wants its XSRF-TOKEN cookie copied into an X-XSRF-TOKEN header on every POST. The
- * cookie is missing on a first visit and right after signing in, so ask for a new one then.
+ * The backend wants its XSRF-TOKEN cookie copied into an X-XSRF-TOKEN header on every POST and
+ * DELETE. The cookie is missing on a first visit and right after signing in, so ask for a new one then.
  */
 async function csrfToken(): Promise<string> {
   const existing = readCookie(document.cookie, "XSRF-TOKEN");
@@ -47,25 +74,48 @@ async function csrfToken(): Promise<string> {
   return readCookie(document.cookie, "XSRF-TOKEN") ?? "";
 }
 
-async function post(path: string, body?: object): Promise<void> {
+/** Sends a request that changes something, and throws an ApiError if the backend says no. */
+async function send(method: "POST" | "DELETE", path: string, body?: object): Promise<Response> {
   const headers: Record<string, string> = { "X-XSRF-TOKEN": await csrfToken() };
   if (body) headers["Content-Type"] = "application/json";
   const response = await fetch(path, {
-    method: "POST",
+    method,
     headers,
     body: body && JSON.stringify(body),
   });
   if (!response.ok) throw new ApiError(response.status, await errorMessage(response));
+  return response;
 }
 
-export function signIn(email: string, password: string): Promise<void> {
-  return post("/api/auth/login", { email, password });
+export async function signIn(email: string, password: string): Promise<void> {
+  await send("POST", "/api/auth/login", { email, password });
 }
 
-export function createAccount(name: string, email: string, password: string): Promise<void> {
-  return post("/api/auth/register", { name, email, password });
+export async function createAccount(name: string, email: string, password: string): Promise<void> {
+  await send("POST", "/api/auth/register", { name, email, password });
 }
 
-export function signOut(): Promise<void> {
-  return post("/api/auth/logout");
+export async function signOut(): Promise<void> {
+  await send("POST", "/api/auth/logout");
+}
+
+const linkTokenSchema = z.object({ linkToken: z.string() });
+
+/** A one-time token that opens Plaid's bank sign-in window. */
+export async function createLinkToken(): Promise<string> {
+  const response = await send("POST", "/api/banks/link-token");
+  return linkTokenSchema.parse(await response.json()).linkToken;
+}
+
+/** Hands the backend the public token Plaid gave the browser. Only the backend sees the real access token. */
+export async function connectBank(publicToken: string): Promise<void> {
+  await send("POST", "/api/banks", { publicToken });
+}
+
+export async function disconnectBank(bankId: string): Promise<void> {
+  await send("DELETE", `/api/banks/${bankId}`);
+}
+
+export async function deleteAccount(): Promise<void> {
+  await send("DELETE", "/api/me");
 }

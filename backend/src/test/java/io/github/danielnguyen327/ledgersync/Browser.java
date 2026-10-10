@@ -35,10 +35,19 @@ class Browser {
     }
 
     Response post(String path, String json) {
+        return send(jsonPost(path, json).header("X-XSRF-TOKEN", csrfToken()));
+    }
+
+    Response delete(String path) {
+        return send(HttpRequest.newBuilder(URI.create(baseUrl + path)).DELETE().header("X-XSRF-TOKEN", csrfToken()));
+    }
+
+    /** The CSRF token from the XSRF-TOKEN cookie, fetched first if this browser doesn't have one yet. */
+    private String csrfToken() {
         if (!cookies.containsKey("XSRF-TOKEN")) {
             get("/api/auth/csrf");
         }
-        return send(jsonPost(path, json).header("X-XSRF-TOKEN", cookies.get("XSRF-TOKEN")));
+        return cookies.get("XSRF-TOKEN");
     }
 
     Response postWithoutCsrfToken(String path, String json) {

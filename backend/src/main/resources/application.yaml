@@ -14,3 +14,11 @@ management:
       base-path: /api
       exposure:
         include: health 
+
+plaid:
+  client-id: ${PLAID_CLIENT_ID:}
+  secret: ${PLAID_SECRET:}
+  environment: ${PLAID_ENV:sandbox}
+
+ledgersync:
+  token-encryption-key: ${TOKEN_ENCRYPTION_KEY:}

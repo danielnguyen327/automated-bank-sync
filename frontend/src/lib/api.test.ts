@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { errorMessage, readCookie, signIn } from "./api";
+import {
+  ApiError,
+  createLinkToken,
+  disconnectBank,
+  errorMessage,
+  messageFor,
+  readCookie,
+  signIn,
+} from "./api";
 
 describe("readCookie", () => {
   it("finds one cookie among several", () => {
@@ -61,5 +69,50 @@ describe("signIn", () => {
       status: 401,
       message: "Email or password is incorrect.",
     });
+  });
+});
+
+describe("bank requests", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("returns the link token the backend created", async () => {
+    vi.stubGlobal("document", { cookie: "XSRF-TOKEN=abc-123" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ linkToken: "link-sandbox-42" })),
+    );
+
+    expect(await createLinkToken()).toBe("link-sandbox-42");
+  });
+
+  it("disconnects a bank with a DELETE that carries the CSRF token", async () => {
+    vi.stubGlobal("document", { cookie: "XSRF-TOKEN=abc-123" });
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await disconnectBank("bank-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/banks/bank-1",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({ "X-XSRF-TOKEN": "abc-123" }),
+      }),
+    );
+  });
+});
+
+describe("messageFor", () => {
+  it("shows the backend's sentence for an ApiError", () => {
+    expect(messageFor(new ApiError(404, "That bank isn't connected."))).toBe(
+      "That bank isn't connected.",
+    );
+  });
+  it("explains a network failure in plain words", () => {
+    expect(messageFor(new TypeError("Failed to fetch"))).toBe(
+      "Can’t reach LedgerSync right now. Try again in a moment.",
+    );
   });
 });
